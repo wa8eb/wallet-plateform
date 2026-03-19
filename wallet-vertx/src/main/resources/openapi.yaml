@@ -1,0 +1,414 @@
+openapi: "3.0.3"
+info:
+  title: Wallet Platform API (Vert.x)
+  version: "1.0.0"
+  description: >
+    REST API for the Wallet Platform — manage wallets, pockets, credits, spends, and transfers.
+    This instance runs on the reactive Vert.x adapter (port 8081).
+
+servers:
+  - url: /
+    description: Current server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    WalletView:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        userId:      { type: string }
+        currency:    { type: string, example: EUR }
+        totalBalance:{ type: integer, format: int64, description: "Balance in minor units (cents)" }
+        active:      { type: boolean }
+        pockets:
+          type: array
+          items: { $ref: "#/components/schemas/PocketView" }
+        createdAt:   { type: string, format: date-time }
+
+    PocketView:
+      type: object
+      properties:
+        id:         { type: string, format: uuid }
+        walletId:   { type: string, format: uuid }
+        name:       { type: string }
+        balance:    { type: integer, format: int64, description: "Balance in minor units (cents)" }
+        currency:   { type: string, example: EUR }
+        allowedCategories:
+          type: array
+          items: { $ref: "#/components/schemas/CategoryView" }
+        active:     { type: boolean }
+        createdAt:  { type: string, format: date-time }
+
+    CategoryView:
+      type: object
+      properties:
+        code:  { type: string, example: FOOD }
+        label: { type: string, example: Food & Beverage }
+
+    LedgerView:
+      type: object
+      properties:
+        pocketId: { type: string, format: uuid }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/LedgerEntryView" }
+
+    LedgerEntryView:
+      type: object
+      properties:
+        id:         { type: string, format: uuid }
+        type:       { type: string, enum: [CREDIT, DEBIT] }
+        amount:     { type: integer, format: int64 }
+        currency:   { type: string, example: EUR }
+        reference:  { type: string }
+        occurredAt: { type: string, format: date-time }
+        source:     { type: string, nullable: true, description: "CREDIT only — TOP_UP | EMPLOYER | REFUND" }
+        merchant:   { type: string, nullable: true, description: "DEBIT only" }
+        category:   { type: string, nullable: true, description: "DEBIT only — benefit category code" }
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:    { type: string }
+        message: { type: string }
+
+    TokenRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: string, example: user-42 }
+
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+
+    CreateWalletRequest:
+      type: object
+      required: [currencyCode]
+      properties:
+        currencyCode: { type: string, example: EUR }
+
+    CreatePocketRequest:
+      type: object
+      required: [name, allowedBenefits]
+      properties:
+        name: { type: string, example: Lunch }
+        allowedBenefits:
+          type: array
+          items: { type: string }
+          example: [FOOD, TRANSPORT]
+
+    CreditRequest:
+      type: object
+      required: [amount, currencyCode, source, reference]
+      properties:
+        amount:       { type: integer, format: int64, description: "Amount in minor units" }
+        currencyCode: { type: string, example: EUR }
+        source:       { type: string, enum: [TOP_UP, EMPLOYER, REFUND] }
+        reference:    { type: string, example: "PAY-001" }
+
+    SpendRequest:
+      type: object
+      required: [amount, currencyCode, merchant, benefitCategory, reference]
+      properties:
+        amount:          { type: integer, format: int64 }
+        currencyCode:    { type: string, example: EUR }
+        merchant:        { type: string, example: "Sodexo Canteen" }
+        benefitCategory: { type: string, example: FOOD }
+        reference:       { type: string, example: "TXN-042" }
+
+    TransferRequest:
+      type: object
+      required: [fromPocketId, toPocketId, amount, currencyCode, reference]
+      properties:
+        fromPocketId: { type: string, format: uuid }
+        toPocketId:   { type: string, format: uuid }
+        amount:       { type: integer, format: int64 }
+        currencyCode: { type: string, example: EUR }
+        reference:    { type: string, example: "TRF-007" }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: UP }
+
+  /auth/token:
+    post:
+      summary: Generate a JWT token
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TokenRequest" }
+      responses:
+        "200":
+          description: JWT token issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+
+  /wallets:
+    post:
+      summary: Create a new wallet
+      tags: [Wallets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWalletRequest" }
+      responses:
+        "201":
+          description: Wallet created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletView" }
+        "409":
+          description: Wallet already exists for this user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /wallets/{walletId}:
+    parameters:
+      - name: walletId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get wallet with all pockets
+      tags: [Wallets]
+      responses:
+        "200":
+          description: Wallet found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletView" }
+        "404":
+          description: Wallet not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      summary: Close (deactivate) a wallet
+      tags: [Wallets]
+      responses:
+        "200":
+          description: Wallet closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletView" }
+        "404":
+          description: Wallet not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /wallets/{walletId}/pockets:
+    post:
+      summary: Create a pocket inside a wallet
+      tags: [Pockets]
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePocketRequest" }
+      responses:
+        "201":
+          description: Pocket created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PocketView" }
+
+  /wallets/{walletId}/pockets/{pocketId}:
+    parameters:
+      - name: walletId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: pocketId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get a pocket
+      tags: [Pockets]
+      responses:
+        "200":
+          description: Pocket found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PocketView" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      summary: Deactivate a pocket
+      tags: [Pockets]
+      responses:
+        "200":
+          description: Pocket deactivated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PocketView" }
+
+  /wallets/{walletId}/pockets/{pocketId}/credit:
+    post:
+      summary: Credit (top-up) a pocket
+      tags: [Transactions]
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: pocketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreditRequest" }
+      responses:
+        "200":
+          description: Pocket credited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PocketView" }
+        "422":
+          description: Domain rule violation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /wallets/{walletId}/pockets/{pocketId}/spend:
+    post:
+      summary: Spend from a pocket
+      tags: [Transactions]
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: pocketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpendRequest" }
+      responses:
+        "200":
+          description: Spend recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PocketView" }
+        "422":
+          description: Insufficient funds or policy violation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /wallets/{walletId}/transfer:
+    post:
+      summary: Transfer between pockets within the same wallet
+      tags: [Transactions]
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransferRequest" }
+      responses:
+        "200":
+          description: Transfer completed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletView" }
+        "422":
+          description: Insufficient funds or policy violation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /wallets/{walletId}/pockets/{pocketId}/ledger:
+    get:
+      summary: Get the transaction ledger for a pocket
+      tags: [Transactions]
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: pocketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Ledger entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LedgerView" }
+
+  /admin/policy/global:
+    get:
+      summary: Get the currently active global policy
+      tags: [Admin]
+      responses:
+        "200":
+          description: Current global policy JSON
+          content:
+            application/json:
+              schema: { type: object }
+
+  /admin/policy/global/reload:
+    post:
+      summary: Hot-reload global policy from disk
+      tags: [Admin]
+      responses:
+        "200":
+          description: Policy reloaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: reloaded }
+                  policy: { type: object }

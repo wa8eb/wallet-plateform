@@ -29,6 +29,26 @@ class WalletRouter(
             ctx.next()
         }
 
+        // OpenAPI spec + Redocly UI — public
+        get("/openapi.yaml").handler { ctx ->
+            val spec = WalletRouter::class.java.getResourceAsStream("/openapi.yaml")
+                ?.bufferedReader()?.readText()
+                ?: "spec not found"
+            ctx.response()
+                .putHeader("Content-Type", "application/yaml")
+                .setStatusCode(200)
+                .end(spec)
+        }
+        get("/redoc").handler { ctx ->
+            val html = WalletRouter::class.java.getResourceAsStream("/redoc.html")
+                ?.bufferedReader()?.readText()
+                ?: "<h1>Redoc not found</h1>"
+            ctx.response()
+                .putHeader("Content-Type", "text/html")
+                .setStatusCode(200)
+                .end(html)
+        }
+
         // Public
         get("/health").handler { ctx -> ctx.json(200, mapOf("status" to "UP")) }
         post("/auth/token").handler { ctx ->

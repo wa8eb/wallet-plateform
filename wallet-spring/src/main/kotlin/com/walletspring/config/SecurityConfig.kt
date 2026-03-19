@@ -18,7 +18,11 @@ class SecurityConfig(private val jwtFilter: JwtAuthFilter) {
         .csrf { it.disable() }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
         .authorizeHttpRequests {
-            it.requestMatchers("/actuator/**", "/auth/token").permitAll()
+            it.requestMatchers(
+                "/actuator/**", "/auth/token",
+                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                "/redoc", "/redoc.html",
+            ).permitAll()
             it.anyRequest().authenticated()
         }
         .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter::class.java)

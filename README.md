@@ -2,7 +2,7 @@
 
 A production-grade **benefit wallet API** built with pure DDD and onion
 architecture. The domain is framework-free Kotlin. Two runtime adapters
-expose the same domain over REST: one with Spring Boot WebFlux, one with
+expose the same domain over REST: one with Spring Boot WebMVC, one with
 Vert.x — enabling a direct performance comparison.
 
 ---
@@ -11,8 +11,10 @@ Vert.x — enabling a direct performance comparison.
 
 ```
 wallet-domain/          Pure Kotlin domain library (no framework)
-wallet-spring/          Spring Boot 3 + WebFlux adapter
-wallet-vertx/           Vert.x 4 adapter
+wallet-spring/          Spring Boot 3 + WebMVC adapter  (port 8080)
+wallet-vertx/           Vert.x 4 adapter                (port 8081)
+stress-test/            Gatling performance benchmarks
+infra/                  Prometheus + Grafana configuration
 ```
 
 ---
@@ -145,6 +147,9 @@ cd wallet-domain
 cd wallet-spring
 ./gradlew bootRun
 # API available at http://localhost:8080
+# Redocly UI:  http://localhost:8080/redoc
+# OpenAPI JSON: http://localhost:8080/v3/api-docs
+# Swagger UI:  http://localhost:8080/swagger-ui.html
 ```
 
 ### Run Vert.x
@@ -153,6 +158,8 @@ cd wallet-spring
 cd wallet-vertx
 ./gradlew run
 # API available at http://localhost:8081
+# Redocly UI:  http://localhost:8081/redoc
+# OpenAPI YAML: http://localhost:8081/openapi.yaml
 ```
 
 ### Docker
@@ -169,22 +176,62 @@ docker run -p 8081:8081 wallet-vertx
 
 ---
 
+## API documentation
+
+Interactive API docs are served by both adapters via [Redocly](https://redocly.com/):
+
+| Adapter | Redocly UI | Spec |
+|---|---|---|
+| Spring Boot | `http://localhost:8080/redoc` | `GET /v3/api-docs` (JSON, auto-generated) |
+| Vert.x | `http://localhost:8081/redoc` | `GET /openapi.yaml` (YAML, bundled in jar) |
+
+Both docs endpoints are public (no auth token required).
+
+---
+
 ## REST API
 
-All endpoints require `Authorization: Bearer <oidc-token>`.
+All endpoints require `Authorization: Bearer <jwt-token>` unless noted.
 Amounts are always in **minor units** (e.g., 5000 = 50.00 EUR).
+
+### Auth (public)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/auth/token` | Generate a JWT for testing (`{"userId": "u1"}`) |
+
+### Wallets
 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/wallets` | Create wallet for the authenticated user |
 | `GET` | `/wallets/{id}` | Get wallet with all pockets and balances |
+| `DELETE` | `/wallets/{id}` | Close (deactivate) a wallet |
+
+### Pockets
+
+| Method | Path | Description |
+|---|---|---|
 | `POST` | `/wallets/{id}/pockets` | Create a new pocket |
+| `GET` | `/wallets/{id}/pockets/{pid}` | Get a pocket |
+| `DELETE` | `/wallets/{id}/pockets/{pid}` | Deactivate a pocket |
+
+### Transactions
+
+| Method | Path | Description |
+|---|---|---|
 | `POST` | `/wallets/{id}/pockets/{pid}/credit` | Top-up a pocket |
 | `POST` | `/wallets/{id}/pockets/{pid}/spend` | Pre-authorised spend |
 | `POST` | `/wallets/{id}/transfer` | Transfer between two pockets |
 | `GET` | `/wallets/{id}/pockets/{pid}/ledger` | Full ledger for a pocket |
-| `POST` | `/wallets/{id}/policy/reload` | Reload policy from file without restart |
-| `DELETE` | `/wallets/{id}/pockets/{pid}` | Deactivate a pocket |
+
+### Admin
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/admin/policy/global` | Get the active global policy |
+| `POST` | `/admin/policy/global/reload` | Hot-reload global policy from disk |
+| `POST` | `/wallets/{id}/policy/reload` | Reload wallet-specific policy |
 
 ---
 
@@ -193,10 +240,7 @@ Amounts are always in **minor units** (e.g., 5000 = 50.00 EUR).
 Gatling scenarios hitting both runtimes simultaneously:
 
 ```bash
-cd wallet-spring/stress
-./gradlew gatlingRun
-
-cd wallet-vertx/stress
+cd stress-test
 ./gradlew gatlingRun
 ```
 

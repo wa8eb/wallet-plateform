@@ -37,6 +37,9 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
+    // OpenAPI / Redocly
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0")
+
     // Metrics
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
