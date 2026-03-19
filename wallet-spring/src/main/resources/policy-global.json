@@ -1,0 +1,16 @@
+{
+  "_comment": "Global instance-wide policy — applies to ALL wallets and ALL pockets.",
+  "_reload": "POST /admin/policy/reload to apply changes without restart.",
+  "spend": {
+    "currency": "EUR",
+    "maxTransactionAmount": 100000,
+    "blockedMerchants": [],
+    "lowBalanceNotifyThreshold": 500
+  },
+  "transfer": {
+    "currency": "EUR",
+    "maxTransferAmount": 500000,
+    "enforceBenefitCompatibility": false,
+    "largeTransferNotifyThreshold": 50000
+  }
+}

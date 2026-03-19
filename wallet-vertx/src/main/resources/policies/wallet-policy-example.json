@@ -1,0 +1,16 @@
+{
+  "walletId": "00000000-0000-0000-0000-000000000001",
+  "spend": {
+    "currency": "EUR",
+    "maxTransactionAmount": 50000,
+    "blockedMerchants": [],
+    "overspendFallbackPocketId": null,
+    "lowBalanceNotifyThreshold": 500
+  },
+  "transfer": {
+    "currency": "EUR",
+    "maxTransferAmount": 100000,
+    "enforceBenefitCompatibility": false,
+    "largeTransferNotifyThreshold": 20000
+  }
+}

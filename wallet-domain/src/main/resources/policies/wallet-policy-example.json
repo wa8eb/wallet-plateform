@@ -1,0 +1,35 @@
+{
+  "_comment": "Per-wallet policy configuration. Filename convention: wallet-policy-{walletId}.json",
+  "_amounts": "All monetary amounts are in minor units (e.g. cents). EUR 50.00 = 5000",
+
+  "walletId": "550e8400-e29b-41d4-a716-446655440000",
+
+  "spend": {
+    "currency": "EUR",
+
+    "_comment_maxTransactionAmount": "Deny any single spend above €500.00. Null = no cap.",
+    "maxTransactionAmount": 50000,
+
+    "_comment_blockedMerchants": "Merchants always denied regardless of funds.",
+    "blockedMerchants": ["CasinoXYZ", "BettingPlus"],
+
+    "_comment_overspendFallbackPocketId": "PocketId to cover shortfall. Null = deny overspend.",
+    "overspendFallbackPocketId": "660e8400-e29b-41d4-a716-446655440001",
+
+    "_comment_lowBalanceNotifyThreshold": "Emit RuleNotificationRaised when balance after spend < €10.00",
+    "lowBalanceNotifyThreshold": 1000
+  },
+
+  "transfer": {
+    "currency": "EUR",
+
+    "_comment_maxTransferAmount": "Deny any single transfer above €1000.00. Null = no cap.",
+    "maxTransferAmount": 100000,
+
+    "_comment_enforceBenefitCompatibility": "Deny transfer between pockets with incompatible benefit categories.",
+    "enforceBenefitCompatibility": true,
+
+    "_comment_largeTransferNotifyThreshold": "Emit notification for transfers >= €200.00",
+    "largeTransferNotifyThreshold": 20000
+  }
+}

@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: wallet-spring
+    static_configs:
+      - targets: ["wallet-spring:8080"]
+    metrics_path: /actuator/prometheus
+
+  - job_name: wallet-vertx
+    static_configs:
+      - targets: ["wallet-vertx:8081"]
+    metrics_path: /metrics

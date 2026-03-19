@@ -1,0 +1,104 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Wallet Platform — local development stack
+#
+# FIRST TIME SETUP (once only):
+#   1. cd wallet-domain && ./gradlew publishToMavenLocal
+#   2. docker compose run --rm m2-init
+#   3. docker compose up --build
+#
+# Step 2 copies your host ~/.m2 into a Docker named volume (wallet-m2-cache).
+# The builder stages in both Dockerfiles mount this cache volume so Gradle
+# can resolve wallet-domain without touching the host filesystem at build time.
+#
+# After that, just: docker compose up --build
+# Re-run step 1+2 only when you change wallet-domain.
+# ---------------------------------------------------------------------------
+
+volumes:
+  wallet-m2-cache:
+    name: wallet-m2-cache
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # m2-init — one-shot service that copies ~/.m2 into the Docker cache volume.
+  # Run manually: docker compose run --rm m2-init
+  # ---------------------------------------------------------------------------
+  m2-init:
+    image: alpine:3.19
+    volumes:
+      - wallet-m2-cache:/m2-cache
+      - "${HOME}/.m2:/host-m2:ro"
+    command: >
+      sh -c "
+        echo 'Copying ~/.m2 into wallet-m2-cache volume...' &&
+        cp -r /host-m2/. /m2-cache/ &&
+        echo 'Done. Cache volume is ready for docker compose up --build'
+      "
+    profiles:
+      - init
+
+  wallet-spring:
+    build:
+      context: ./wallet-spring
+      dockerfile: Dockerfile
+    image: wallet-spring:local
+    container_name: wallet-spring
+    ports:
+      - "8080:8080"
+    environment:
+      WALLET_JWT_SECRET: "wallet-super-secret-key-32chars!!"
+      WALLET_JWT_EXPIRATION_MS: "86400000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  wallet-vertx:
+    build:
+      context: ./wallet-vertx
+      dockerfile: Dockerfile
+    image: wallet-vertx:local
+    container_name: wallet-vertx
+    ports:
+      - "8081:8081"
+    environment:
+      JWT_SECRET: "wallet-super-secret-key-32chars!!"
+      PORT: "8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: wallet-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      wallet-spring:
+        condition: service_healthy
+      wallet-vertx:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: wallet-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "wallet"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus

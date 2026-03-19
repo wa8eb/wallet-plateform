@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: wallet-spring
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+wallet:
+  jwt:
+    secret: "wallet-super-secret-key-32chars!!"
+    expiration-ms: 86400000
+  policy:
+    # Classpath resource or absolute filesystem path.
+    # Override with env var: WALLET_POLICY_GLOBAL_POLICY_FILE=/etc/wallet/policy-global.json
+    global-policy-file: "policy-global.json"
+
+logging:
+  level:
+    com.walletspring: DEBUG
